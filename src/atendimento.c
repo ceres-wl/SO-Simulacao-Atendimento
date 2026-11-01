@@ -16,11 +16,6 @@ VecInt allocVecInt(int size){
     return v;
 }
 
-// Dobrar o tamanho do vetor de inteiros
-VecInt doubleAlocVecInt(){
-
-}
-
 int main(int argc, char** argv){
     // TODO tratamento melhor de entrada
     if(argc != 3){
@@ -32,7 +27,7 @@ int main(int argc, char** argv){
     // Não tenho certeza se ele vai usar float aqui, talvez seja só inteiro
     float X = atof(argv[2]);
 
-    VecInt fila = allocVecInt(N!=0?N:64);
+    VecInt fila = allocVecInt(N!=0?N:100);
 
     return 0;
 }
