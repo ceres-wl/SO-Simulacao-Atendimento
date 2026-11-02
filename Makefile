@@ -4,7 +4,7 @@ CXXFLAGS := -Wall -Wextra
 SRC_DIR := src
 BUILD_DIR := build
 
-SRC := src/atendimento.c src/fila.c
+SRC := src/atendimento.c src/fila.c src/time.c
 OBJ := $(SRC:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
 DEP := $(OBJ:.o=.d)
 

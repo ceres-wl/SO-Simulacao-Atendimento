@@ -6,6 +6,7 @@
 #include <semaphore.h>
 #include <fcntl.h>
 #include "fila.h"
+#include "time.h"
 
 #define STACK_SIZE 1024 * 64
 
@@ -21,7 +22,7 @@ enquanto nos outros casos basta deixar a recepção criando cliente até acabar
 void atendente(Fila* fila){
     // TODO fazer
     while(1){
-        printf("atend: %d\n", fila->end);
+        printf("atend: %d\n", timeInMilliseconds(NULL));
         fflush(stdout);
         usleep(100000);
     }
@@ -53,7 +54,7 @@ void recepcao(Fila* fila, int N){
         );
 
         // pra testar
-        printf("recep: %d\n", fila->end);
+        printf("recep: %d\n", timeInMilliseconds());
         fflush(stdout);
         
         num_proc++;
@@ -61,7 +62,7 @@ void recepcao(Fila* fila, int N){
 }
 
 int quantum = 0;
-void escalonador() 
+void escalonador(int n) 
 {
     quantum++;
     
@@ -130,8 +131,8 @@ int main(int argc, char** argv) {
     ctx_thread[1].uc_stack.ss_flags = 0;
     ctx_thread[1].uc_link = &ctx_main;
 
-    makecontext(&ctx_thread[0], atendente, 1, fila);
-    makecontext(&ctx_thread[1], recepcao, 2, fila, N);
+    makecontext(&ctx_thread[0], (void(*)(void))atendente, 1, fila);
+    makecontext(&ctx_thread[1], (void(*)(void))recepcao, 2, fila, N);
 
     iniciar_timer(10);
     
