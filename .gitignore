@@ -1,4 +1,6 @@
-*.exe
-build
 .vscode
-build
+
+build/*
+!build/cliente
+
+demanda.txt
