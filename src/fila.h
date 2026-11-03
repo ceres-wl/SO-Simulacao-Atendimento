@@ -3,16 +3,17 @@
 
 typedef struct Cliente{
     pid_t PID;
-    // hora_chegada, não sei que estrutura representa tempo em c 
+    long long hora_chegada;
     int prioridade; // 0: baixa, 1: alta
-    // tempo_atendimento, não sei que estrutura representa tempo em c 
+    int tempo_atendimento;
 } Cliente;
 
-Cliente* createCliente(pid_t PID, int prioridade);
+Cliente* createCliente(pid_t PID, int prioridade, long long hora_chegada, int tempo_atendimento);
 
 typedef struct Fila{
     // Teoricamente a gente não precisa guardar isso, já que o max é 100, mas tá aí
-    int size;
+    int max_size;
+    int cur_size;
     
     int start;
     int end;
@@ -25,3 +26,4 @@ void enqueueCliente(Fila* f, Cliente* c);
 void dequeueCliente(Fila* f);
 Cliente* topCliente(Fila* f);
 int isFull(Fila* f);
+int isEmpty(Fila* f);

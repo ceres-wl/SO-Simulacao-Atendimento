@@ -1,9 +1,19 @@
 # SO-Simulacao-Atendimento
 
-Tem que compilar o cliente na mão:
+Pra compilar os processos extras(cliente e analista):
 
 ```bash
-gcc cliente.c -Wall build/cliente
+make extras
 ```
 
-> O repositório tem um binário compilado pra linux
+Pra compilar o programa em si:
+
+```bash
+make
+```
+
+Rode o programa a partir do root do projeto, pro programa principal achar os processos extras:
+
+```bash
+./build/atendimento N X
+```
