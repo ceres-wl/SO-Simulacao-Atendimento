@@ -19,7 +19,8 @@ void atendente(Fila* fila, pid_t pid_analista){
     // Não fazer nd se não tiver cliente na fila
     // O busy waiting não é ideal mas não é pra influenciar mt na eficiencia do programa, só vai gastar mais cpu doq precisa as vezes
     while(!isEmpty(fila)){
-        Cliente* cliente = topCliente(fila);
+        Cliente* cliente = dequeueCliente(fila);
+        if(cliente == NULL) continue;
 
         kill(cliente->PID, SIGCONT);
 
@@ -35,8 +36,6 @@ void atendente(Fila* fila, pid_t pid_analista){
 
         // Abrir sem_block
         sem_post(sem_block);
-
-        dequeueCliente(fila);
 
         // TODO decidir condição
         if(1){
@@ -57,7 +56,7 @@ void recepcao(Fila* fila, int N, long long tempo_inicio){
     while(N == 0 || num_proc < N){
         // TODO Busy waiting indireto, nesse caso afeta a eficiencia do programa,
         // dá pra pensar numa solução melhor dps
-        if(N == 0 && fila->cur_size >= 100) continue;
+        if(N == 0 && fila->tamanho >= 100) continue;
 
         // Criando o cliente
         char** argv;
@@ -75,8 +74,10 @@ void recepcao(Fila* fila, int N, long long tempo_inicio){
         int tempo_atendimento = atoi(buff_atend);
         fclose(demanda);
 
+        int prioridade = rand() % 2;
+        int paciencia = prioridade ? X / 2 : X;
         enqueueCliente(fila,
-            createCliente(pid, rand()%2, timeInMilliseconds()-tempo_inicio, tempo_atendimento)
+            createCliente(pid, prioridade, timeInMilliseconds()-tempo_inicio, paciencia, tempo_atendimento)
         );
 
         remove("demanda.txt");
@@ -118,6 +119,10 @@ void escalonador(int n)
 }
 
 void iniciar_timer(int milissegundos) {
+    //inicializar mascara para operacoes na fila
+    sigemptyset(&mascara_escalonador);
+    sigaddset(&mascara_escalonador, SIGALRM);
+
     struct sigaction sa;
     struct itimerval timer;
 
