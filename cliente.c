@@ -24,13 +24,20 @@ int main(){
 
     raise(SIGSTOP);
 
+    // printf("Cliente acordado\n");
+    // fflush(stdout);
+
     sem_t *sem = sem_open("/sem_atend", O_RDWR);
 
-    if(sem != SEM_FAILED) sem_wait(sem);
+    // if(sem != SEM_FAILED) sem_wait(sem);
 
+    // printf("Cliente dormindo...\n");
+    // fflush(stdout);
     usleep(tempo);
 
     if(sem != SEM_FAILED) sem_post(sem);
 
+    // printf("Cliente saindo\n");
+    // fflush(stdout);
     return 0;
 }

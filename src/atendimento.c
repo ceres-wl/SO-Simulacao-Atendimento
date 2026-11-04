@@ -12,26 +12,37 @@
 
 ucontext_t ctx_main, ctx_thread[2];
 
+// Se a recepção acabou o trabalho, o escalonador não precisa fazer troca de contexto mais
+int recep_finish = 0;
+
 void atendente(Fila* fila, pid_t pid_analista){
     sem_t *sem_atend = sem_open("/sem_atend", O_RDWR);
     sem_t *sem_block = sem_open("/sem_block", O_RDWR);
 
     // Não fazer nd se não tiver cliente na fila
     // O busy waiting não é ideal mas não é pra influenciar mt na eficiencia do programa, só vai gastar mais cpu doq precisa as vezes
-    while(!isEmpty(fila)){
-        Cliente* cliente = dequeueCliente(fila);
-        if(cliente == NULL) continue;
+    Cliente* c = dequeueCliente(fila);
+    while(c != NULL || recep_finish == 0){
+        // Se a fila estiver vazia mas a recepção ainda estiver ativa não podemos terminar
+        if(c == NULL){
+            printf("Sem clientes, passando para a recepção...\n");
+            fflush(stdout);
+            // HACK Acho que o ideal seria chamar o escalonador no lugar de trocar o contexto direto
+            swapcontext(&ctx_thread[0], &ctx_thread[1]);
+            printf("Voltando da recepção...\n");
+            fflush(stdout);
+            c = dequeueCliente(fila);
+            continue;
+        }
 
-        kill(cliente->PID, SIGCONT);
+        kill(c->PID, SIGCONT);
 
         sem_wait(sem_atend);
         sem_wait(sem_block);
 
-        // Fechar semáforo block(Acho q não precisa)
-
         // Escrever PID do cliente no LNG
         FILE* lng = fopen("lng.txt", "a");
-        fprintf(lng, "%d\n", cliente->PID);
+        fprintf(lng, "%d\n", c->PID);
         fclose(lng);
 
         // Abrir sem_block
@@ -41,18 +52,32 @@ void atendente(Fila* fila, pid_t pid_analista){
         if(1){
             kill(pid_analista, SIGCONT);
         }
+
+        destroyCliente(c);
+        c = dequeueCliente(fila);
     }
+
+    sem_close(sem_atend);
+    sem_close(sem_block);
 }
 
-// Se a recepção acabou o trabalho, o escalonador não precisa fazer troca de contexto mais
-int recep_finish = 0;
-
-void recepcao(Fila* fila, int N, long long tempo_inicio){
+void recepcao(Fila* fila, int N, float X, long long tempo_inicio){
     // Só a criação dos semáforos, a recepção não usa
-    sem_open("/sem_atend", O_CREAT);
-    sem_open("/sem_block", O_CREAT);
+
+    sem_t* sem_atend = sem_open("/sem_atend", O_CREAT, 0644, 0);
+    if(sem_atend == SEM_FAILED){
+        perror("Falha na criação de sem_atend");
+        exit(1);
+    }
+
+    sem_t* sem_block = sem_open("/sem_block", O_CREAT, 0644, 1);
+    if(sem_block == SEM_FAILED){
+        perror("Falha na criação de sem_block");
+        exit(1);
+    }
 
     int num_proc = 0;
+
     while(N == 0 || num_proc < N){
         // TODO Busy waiting indireto, nesse caso afeta a eficiencia do programa,
         // dá pra pensar numa solução melhor dps
@@ -80,23 +105,29 @@ void recepcao(Fila* fila, int N, long long tempo_inicio){
             createCliente(pid, prioridade, timeInMilliseconds()-tempo_inicio, paciencia, tempo_atendimento)
         );
 
+        printf("Cliente criado\n");
+        fflush(stdout);
+
         remove("demanda.txt");
         
         num_proc++;
     }
 
+    sem_close(sem_atend);
+    sem_close(sem_block);
+
     // Se esse cara acabar, ele passa a vez pro atendente
     recep_finish = 1;
-    swapcontext(&ctx_main, &ctx_thread[0]);
+    swapcontext(&ctx_thread[1], &ctx_thread[0]);
 }
 
 int quantum = 0;
-int atual = 0;
+int atual = 1;
 void escalonador(int n) 
 {
     // HACK O ideal aqui seria deletar o timer pra essa função nem ser chamada, mas não sei fazer isso
     if(recep_finish == 1){
-        swapcontext(&ctx_main, &ctx_thread[0]);
+        // swapcontext(&ctx_thread[0], &ctx_thread[0]);
         return; // nem sei se precisa desse return
     };
     quantum++;
@@ -141,6 +172,9 @@ void iniciar_timer(int milissegundos) {
 }
 
 int main(int argc, char** argv) {
+    sem_unlink("/sem_atend");
+    sem_unlink("/sem_block");
+
     // TODO tratamento melhor de entrada
     if(argc != 3){
         printf("Numero incorreto de argumentos!\n");
@@ -170,12 +204,13 @@ int main(int argc, char** argv) {
     ctx_thread[1].uc_stack.ss_flags = 0;
     ctx_thread[1].uc_link = &ctx_main;
 
+    // TODO analista deveria ser processo separado iniciado separadamente, com pid lido de um arquivo
     char** argv_analista;
     char** envp_analista;
     pid_t pid_analista = create_proc("build/analista", argv_analista, envp_analista);
 
     makecontext(&ctx_thread[0], (void(*)(void))atendente, 2, fila, pid_analista);
-    makecontext(&ctx_thread[1], (void(*)(void))recepcao, 3, fila, N, timeInMilliseconds());
+    makecontext(&ctx_thread[1], (void(*)(void))recepcao, 3, fila, N, X, timeInMilliseconds());
 
     iniciar_timer(10);
     
@@ -183,6 +218,8 @@ int main(int argc, char** argv) {
 
     free(ctx_thread[0].uc_stack.ss_sp);
     free(ctx_thread[1].uc_stack.ss_sp);
+
+    destroyFila(fila);
     
     return 0;
 }

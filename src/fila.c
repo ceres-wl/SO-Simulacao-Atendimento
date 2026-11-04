@@ -26,6 +26,11 @@ Cliente* createCliente(pid_t PID, int prioridade, long long hora_chegada, int pa
     return c;
 }
 
+// TODO fazer isso direito
+void destroyCliente(Cliente *c){
+    free(c);
+}
+
 Fila *createFila(int capacidade_maxima){
     Fila *f = malloc(sizeof(*f));
 
@@ -35,6 +40,11 @@ Fila *createFila(int capacidade_maxima){
     f->capacidade = capacidade_maxima;
 
     return f;
+}
+
+// TODO fazer isso direito
+void destroyFila(Fila *f){
+    free(f);
 }
 
 int isFull(Fila *f){

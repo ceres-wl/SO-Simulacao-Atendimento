@@ -4,3 +4,4 @@ build/*
 !build/cliente
 
 demanda.txt
+lng.txt

@@ -14,6 +14,7 @@ typedef struct Cliente{
 } Cliente;
 
 Cliente* createCliente(pid_t PID, int prioridade, long long hora_chegada, int paciencia, int tempo_atendimento);
+void destroyCliente(Cliente* c);
 
 //2 filas: uma pra prioridade alta, outra pra prioridade baixa
 typedef struct Fila {
@@ -24,6 +25,7 @@ typedef struct Fila {
 } Fila;
 
 Fila* createFila(int max_size);
+void destroyFila(Fila* f);
 int enqueueCliente(Fila* f, Cliente* c);
 Cliente* dequeueCliente(Fila* f);
 Cliente* topCliente(Fila* f);
