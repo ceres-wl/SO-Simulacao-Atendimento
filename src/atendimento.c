@@ -12,11 +12,6 @@
 
 ucontext_t ctx_main, ctx_thread[2];
 
-int atual = 0;
-
-// Se a recepção acabou o trabalho, o escalonador não precisa fazer troca de contexto mais
-int recep_finish = 0;
-
 void atendente(Fila* fila, pid_t pid_analista){
     sem_t *sem_atend = sem_open("/sem_atend", O_RDWR);
     sem_t *sem_block = sem_open("/sem_block", O_RDWR);
@@ -36,18 +31,22 @@ void atendente(Fila* fila, pid_t pid_analista){
         // Escrever PID do cliente no LNG
         FILE* lng = fopen("lng.txt", "a");
         fprintf(lng, "%d\n", cliente->PID);
+        fclose(lng);
 
         // Abrir sem_block
         sem_post(sem_block);
 
         dequeueCliente(fila);
 
-        // decidir condição
+        // TODO decidir condição
         if(1){
             kill(pid_analista, SIGCONT);
         }
     }
 }
+
+// Se a recepção acabou o trabalho, o escalonador não precisa fazer troca de contexto mais
+int recep_finish = 0;
 
 void recepcao(Fila* fila, int N, long long tempo_inicio){
     // Só a criação dos semáforos, a recepção não usa
@@ -65,29 +64,40 @@ void recepcao(Fila* fila, int N, long long tempo_inicio){
         char** envp;
         pid_t pid = create_proc("build/cliente", argv, envp);
 
-        // TODO Falta esperar o cliente escrever pra ler só dps
+        // Checando se a demanda já foi escrita antes de continuar
+        // TODO mudar o tempo desse sleep se necessário
+        while(access("demanda.txt", F_OK) != 0) sleep(10);
+
         // Lendo a demanda do cliente
         char buff_atend[2];
         FILE* demanda = fopen("demanda.txt", "r");
         fgets(buff_atend, sizeof(buff_atend), demanda);
         int tempo_atendimento = atoi(buff_atend);
+        fclose(demanda);
 
         enqueueCliente(fila,
             createCliente(pid, rand()%2, timeInMilliseconds()-tempo_inicio, tempo_atendimento)
         );
+
+        remove("demanda.txt");
         
         num_proc++;
     }
 
     // Se esse cara acabar, ele passa a vez pro atendente
+    recep_finish = 1;
     swapcontext(&ctx_main, &ctx_thread[0]);
 }
 
 int quantum = 0;
+int atual = 0;
 void escalonador(int n) 
 {
     // HACK O ideal aqui seria deletar o timer pra essa função nem ser chamada, mas não sei fazer isso
-    if(recep_finish == 1) return;
+    if(recep_finish == 1){
+        swapcontext(&ctx_main, &ctx_thread[0]);
+        return; // nem sei se precisa desse return
+    };
     quantum++;
     
     if(atual == 0)
