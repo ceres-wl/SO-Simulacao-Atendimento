@@ -42,12 +42,15 @@ int main(){
         // Reescrevendo o resto dos PIDs que não lemos no lng
         // Eu poderia só reabrir o arquivo destruindo ele mas acho q é mais lento
         ftruncate(lng->_fileno, 0); // Isso aqui não devia tá funcionando, mas por algum motivo tá funcionando então eu vou aceitar ok? ok
+        // TODO ver por que isso ai em cima tá funcionando, acho que pode ter algo suspeito rolando e o programa pode ta errado
         fseek(lng, 0, 0);
         fprintf(lng, "%s", remaining_content);
 
+        // Jogar os prints logo no terminal antes de continuar
         fflush(stdout);
 
-        usleep(20);
+        // Esse sleep era pra diminuir as chances do 
+        // usleep(20);
 
         sem_post(sem_block);
     }

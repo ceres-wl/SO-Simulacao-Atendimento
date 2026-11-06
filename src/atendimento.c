@@ -10,15 +10,28 @@
 #include "processo.h"
 
 #define STACK_SIZE 1024 * 64
-#define TIMER_ESCALONADOR 10
+#define TIMER_ESCALONADOR_USEC 1000
+
+#define THREAD_ATEND 0
+#define THREAD_RECEP 1
+#define THREAD_SCANN 2
 
 ucontext_t ctx_main, ctx_thread[3];
+
+// Fila de clientes
+Fila* fila;
 
 // Thread atual
 int atual = 1;
 
-// Variável pro controle de prioridade de thread
-int quantum = 0;
+// Thread que estava rodando antes da preempção do scanner
+int pre_scan = 0;
+
+// Variável que controla timing das threads atend e recep
+int timing_threads = 0;
+
+// Variável independente que dá uma chance pra thread do scanner rodar
+int timing_scanner = 0;
 
 // Se a recepção acabou o trabalho, o escalonador não precisa fazer troca de contexto mais
 int recep_finish = 0;
@@ -40,9 +53,11 @@ int atendidos = 0;
 int satisfeitos = 0;
 
 // Função só pra auxiliar nossas trocas manuais de contexto
-void swap_threads(int from, int to){
+void swap_threads(int to){
+    if(to == atual) return;
+    int antiga = atual;
     atual = to;
-    swapcontext(&ctx_thread[from], &ctx_thread[to]);
+    swapcontext(&ctx_thread[antiga], &ctx_thread[atual]);
 }
 
 /* ideia:
@@ -64,37 +79,55 @@ void escalonador(int n){
     if(user_finish == 1){
         swapcontext(&ctx_thread[atual], &ctx_main);
     }
+
     // HACK O ideal aqui seria deletar o timer pra essa função nem ser chamada mais, mas não sei fazer isso
     if(recep_finish == 1){
+        if(atual != THREAD_RECEP){
+            swap_threads(THREAD_RECEP);
+        }
+
         return;
     };
 
-    quantum++;
+    timing_threads++;
+    timing_scanner++;
+
+    if(timing_scanner > 100000/TIMER_ESCALONADOR_USEC){
+        swap_threads(THREAD_SCANN);
+        timing_scanner = 0;
+    }else if(atual == 2){
+        swap_threads(THREAD_ATEND);
+    }
     
-    // Tá totalmente desgraçado esse escalonador, primeiro passo pra otimizar é melhorar isso aqui
-    if(atual != 1){
-        if(quantum % 5 == 0){
-            int antigo = atual;
-            atual = 1;
+    // Tá meio desgraçado esse escalonador, primeiro passo pra otimizar é melhorar isso aqui
+    // if(timing_scanner > 25){
+    //     swap_threads(THREAD_SCANN);
+    //     timing_scanner = 0;
+    // }else if(fila->tamanho < fila->capacidade && timing_threads < 6){
+    //     swap_threads(THREAD_RECEP);
+    // }else{
+    //     swap_threads(THREAD_ATEND);
+    //     timing_threads = 0;
+    // }
 
-            swapcontext(&ctx_thread[antigo], &ctx_thread[atual]);
-        }
-    }
-    else if(atual != 2 && quantum > 25){
-        int antigo = atual;
-        atual = 2;
-
-        swapcontext(&ctx_thread[antigo], &ctx_thread[atual]);
+    // if(atual != THREAD_RECEP){
+    //     if(quantum % 5 == 0){
+    //         swap_threads(THREAD_RECEP);
+    //     }
+    // }
+    // else if(atual != THREAD_SCANN && quantum > 25){
+    //     swap_threads(THREAD_SCANN);
         
-        quantum = 0;
-    }else{
-        int antigo = atual;
-        atual = 0;
-        swapcontext(&ctx_thread[antigo], &ctx_thread[atual]);
-    }
+    //     quantum = 0;
+    // }else{
+    //     swap_threads(THREAD_ATEND);
+    // }
+
+    // printf("%d\n", atual);
+    // fflush(stdout);
 }
 
-void iniciar_timer(int milissegundos) {
+void iniciar_timer(int microsegundos) {
     //inicializar mascara para operacoes na fila
     sigemptyset(&mascara_escalonador);
     sigaddset(&mascara_escalonador, SIGALRM);
@@ -109,9 +142,9 @@ void iniciar_timer(int milissegundos) {
     sigaction(SIGALRM, &sa, NULL);
 
     timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = milissegundos * 1000;
+    timer.it_value.tv_usec = microsegundos;
     timer.it_interval.tv_sec = 0;
-    timer.it_interval.tv_usec = milissegundos * 1000;
+    timer.it_interval.tv_usec = microsegundos;
 
     setitimer(ITIMER_REAL, &timer, NULL);
 }
@@ -125,7 +158,7 @@ void scanner(){
     user_finish = 1;
 }
 
-void atendente(Fila* fila){
+void atendente(){
     sem_t *sem_atend = sem_open("/sem_atend", O_RDWR);
     sem_t *sem_block = sem_open("/sem_block", O_RDWR);
 
@@ -138,7 +171,7 @@ void atendente(Fila* fila){
             // printf("Sem clientes, passando para a recepção...\n");
             // fflush(stdout);
 
-            swap_threads(0, 1);
+            swap_threads(THREAD_RECEP);
 
             // printf("Voltando da recepção...\n");
             // fflush(stdout);
@@ -147,6 +180,8 @@ void atendente(Fila* fila){
             continue;
         }
 
+        // printf("Acordando cliente %d\n", c->PID);
+        // fflush(stdout);
         kill(c->PID, SIGCONT);
 
         sem_wait(sem_atend);
@@ -161,6 +196,8 @@ void atendente(Fila* fila){
         fprintf(lng, "%d\n", c->PID);
         fclose(lng);
 
+        // Abrir sem_atend
+        // sem_post(sem_atend);
         // Abrir sem_block
         sem_post(sem_block);
 
@@ -178,12 +215,17 @@ void atendente(Fila* fila){
         c = dequeueCliente(fila);
     }
 
+    // Caso o timing não tenha permitido o analista de printar tudo, chamar mais uma vez
+    kill(pid_analista, SIGCONT);
+    int status;
+    waitpid(pid_analista, &status, WUNTRACED);
+
     sem_close(sem_atend);
     sem_close(sem_block);
 }
 
-void recepcao(Fila* fila){   
-    iniciar_timer(TIMER_ESCALONADOR); 
+void recepcao(){   
+    iniciar_timer(TIMER_ESCALONADOR_USEC); 
 
     // Só a criação dos semáforos, a recepção não usa
     sem_t* sem_atend = sem_open("/sem_atend", O_CREAT, 0644, 0);
@@ -206,6 +248,7 @@ void recepcao(Fila* fila){
         if(N == 0 && fila->tamanho >= 100){
             // printf("Fila cheia...");
             // fflush(stdout);
+            swap_threads(THREAD_ATEND);
             continue;
         }
 
@@ -242,6 +285,8 @@ void recepcao(Fila* fila){
         // printf("Cliente criado: %d\n", pid);
         // fflush(stdout);
         
+        swap_threads(THREAD_ATEND);
+
         num_proc++;
     }
 
@@ -250,7 +295,7 @@ void recepcao(Fila* fila){
 
     // Se esse cara acabar, ele passa a vez pro atendente
     recep_finish = 1;
-    swap_threads(1, 0);
+    swap_threads(THREAD_ATEND);
 }
 
 int main(int argc, char** argv) {
@@ -269,7 +314,7 @@ int main(int argc, char** argv) {
     // Não tenho certeza se ele vai usar float aqui, talvez seja só inteiro
     X = atof(argv[2]);
 
-    Fila* fila = createFila(N!=0?N:100);
+    fila = createFila(N!=0?N:100);
     
     srand(time(NULL));
 
@@ -299,11 +344,10 @@ int main(int argc, char** argv) {
     char** envp_analista;
     pid_analista = create_proc("build/analista", argv_analista, envp_analista);
 
-    makecontext(&ctx_thread[0], (void(*)(void))atendente, 1, fila);
-    makecontext(&ctx_thread[1], (void(*)(void))recepcao, 1, fila);
+    makecontext(&ctx_thread[0], (void(*)(void))atendente, 0);
+    makecontext(&ctx_thread[1], (void(*)(void))recepcao, 0);
     makecontext(&ctx_thread[2], (void(*)(void))scanner, 0);
 
-    
     swapcontext(&ctx_main, &ctx_thread[1]);
 
     free(ctx_thread[0].uc_stack.ss_sp);
