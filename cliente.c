@@ -22,16 +22,19 @@ int main(){
     fprintf(demanda, "%d", tempo);
     fclose(demanda);
 
+    // printf("Cliente %d desligando...\n", getpid());
+    // fflush(stdout);
+    
     raise(SIGSTOP);
 
-    // printf("Cliente acordado\n");
+    // printf("Cliente %d acordado\n", getpid());
     // fflush(stdout);
 
     sem_t *sem = sem_open("/sem_atend", O_RDWR);
 
     // if(sem != SEM_FAILED) sem_wait(sem);
 
-    // printf("Cliente dormindo...\n");
+    // printf("%d: dormindo por %d ms...\n", getpid(), tempo);
     // fflush(stdout);
     usleep(tempo);
 

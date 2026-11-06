@@ -6,9 +6,10 @@
 #include <unistd.h>
 #include <semaphore.h>
 
+// TODO decidir como vamos ler o pid do analista, podemos ler só no inicio do programa,
+// mas daí tem obrigatoriamente que abrir o analista antes do atendimento
 
 // TODO printar pid num arquivo quando iniciar
-// TODO forma de avisar esse cara q o programa principal acabou, pra ele acabar tbm
 int main(){
     sem_t *sem_block = sem_open("/sem_block", O_RDWR);
 
@@ -20,7 +21,7 @@ int main(){
         FILE* lng = fopen("lng.txt", "r+");
 
         // PID no linux vai até 7 digitos acho, botei um extra pra garantir
-        char str[8] = "";
+        char str[10] = "";
         int i = 0;
         do{
             char* res = fgets(str, sizeof(str), lng);
@@ -50,6 +51,4 @@ int main(){
 
         sem_post(sem_block);
     }
-
-    return 0;
 }
