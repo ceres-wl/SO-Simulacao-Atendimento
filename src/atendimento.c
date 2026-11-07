@@ -10,7 +10,7 @@
 #include "processo.h"
 
 #define STACK_SIZE 1024 * 64
-#define TIMER_ESCALONADOR_USEC 1000
+#define TIMER_ESCALONADOR_USEC 100000
 
 #define THREAD_ATEND 0
 #define THREAD_RECEP 1
@@ -24,19 +24,17 @@ Fila* fila;
 // Thread atual
 int atual = 1;
 
-// Thread que estava rodando antes da preempção do scanner
-int pre_scan = 0;
-
-// Variável que controla timing das threads atend e recep
-int timing_threads = 0;
-
 // Variável independente que dá uma chance pra thread do scanner rodar
 int timing_scanner = 0;
 
 // Se a recepção acabou o trabalho, o escalonador não precisa fazer troca de contexto mais
 int recep_finish = 0;
 
+// "Cooldown" pra acordar o analista
 int timing_analista = 0;
+
+// Se N é 0 ou não, se não for não precisamos do scanner
+int needs_scanner;
 
 // Entradas
 int N; float X;
@@ -81,6 +79,7 @@ void escalonador(int n){
     }
 
     // HACK O ideal aqui seria deletar o timer pra essa função nem ser chamada mais, mas não sei fazer isso
+    // E não vai ajudar mt na eficiencia do programa
     if(recep_finish == 1){
         if(atual != THREAD_RECEP){
             swap_threads(THREAD_RECEP);
@@ -89,10 +88,9 @@ void escalonador(int n){
         return;
     };
 
-    timing_threads++;
     timing_scanner++;
 
-    if(timing_scanner > 100000/TIMER_ESCALONADOR_USEC){
+    if(needs_scanner && timing_scanner > 2){
         swap_threads(THREAD_SCANN);
         timing_scanner = 0;
     }else if(atual == 2){
@@ -212,6 +210,15 @@ void atendente(){
         timing_analista++;
 
         destroyCliente(c);
+
+        // timing_scanner++;
+        // if(needs_scanner && timing_scanner > 100){
+        //     swap_threads(THREAD_SCANN);
+        //     timing_scanner = 0;
+        // }else{
+        //     swap_threads(THREAD_RECEP);
+        // }
+
         c = dequeueCliente(fila);
     }
 
@@ -225,7 +232,7 @@ void atendente(){
 }
 
 void recepcao(){   
-    iniciar_timer(TIMER_ESCALONADOR_USEC); 
+    iniciar_timer(TIMER_ESCALONADOR_USEC);
 
     // Só a criação dos semáforos, a recepção não usa
     sem_t* sem_atend = sem_open("/sem_atend", O_CREAT, 0644, 0);
@@ -311,6 +318,8 @@ int main(int argc, char** argv) {
     }
 
     N = atoi(argv[1]);
+
+    needs_scanner = N == 0;
     // Não tenho certeza se ele vai usar float aqui, talvez seja só inteiro
     X = atof(argv[2]);
 
