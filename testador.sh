@@ -1,0 +1,10 @@
+./build/$1 1000 1 >> ./performance/$1.csv
+./build/$1 1000 1 >> ./performance/$1.csv
+./build/$1 1000 1 >> ./performance/$1.csv
+./build/$1 1000 1 >> ./performance/$1.csv
+./build/$1 1000 1 >> ./performance/$1.csv
+./build/$1 1000 1 >> ./performance/$1.csv
+./build/$1 1000 1 >> ./performance/$1.csv
+./build/$1 1000 1 >> ./performance/$1.csv
+./build/$1 1000 1 >> ./performance/$1.csv
+./build/$1 1000 1 >> ./performance/$1.csv
