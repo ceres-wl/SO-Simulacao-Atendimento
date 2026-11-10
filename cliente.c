@@ -32,7 +32,7 @@ int main(){
 
     sem_t *sem = sem_open("/sem_atend", O_RDWR);
 
-    // if(sem != SEM_FAILED) sem_wait(sem);
+    if(sem != SEM_FAILED) sem_wait(sem);
 
     // printf("%d: dormindo por %d ms...\n", getpid(), tempo);
     // fflush(stdout);

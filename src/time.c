@@ -6,3 +6,11 @@ long long timeInMilliseconds(){
     gettimeofday(&tv, 0);
     return (((long long)tv.tv_sec)*1000)+(tv.tv_usec/1000);
 }
+
+long timeInNanoSeconds(){
+    struct timespec time;
+
+    clock_gettime(CLOCK_MONOTONIC, &time);
+
+    return time.tv_nsec;
+}

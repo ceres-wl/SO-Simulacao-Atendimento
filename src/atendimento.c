@@ -182,7 +182,10 @@ void atendente(){
         // fflush(stdout);
         kill(c->PID, SIGCONT);
 
+        // Esperando sem_atend abrir
         sem_wait(sem_atend);
+        sem_post(sem_atend);
+
         sem_wait(sem_block);
 
         long long tempo_atual = timeInMilliseconds()-tempo_inicio;
@@ -195,7 +198,6 @@ void atendente(){
         fclose(lng);
 
         // Abrir sem_atend
-        // sem_post(sem_atend);
         // Abrir sem_block
         sem_post(sem_block);
 
@@ -235,7 +237,7 @@ void recepcao(){
     iniciar_timer(TIMER_ESCALONADOR_USEC);
 
     // Só a criação dos semáforos, a recepção não usa
-    sem_t* sem_atend = sem_open("/sem_atend", O_CREAT, 0644, 0);
+    sem_t* sem_atend = sem_open("/sem_atend", O_CREAT, 0644, 1);
     if(sem_atend == SEM_FAILED){
         perror("Falha na criação de sem_atend");
         exit(1);
