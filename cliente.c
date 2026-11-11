@@ -21,26 +21,16 @@ int main(){
     FILE* demanda = fopen("demanda.txt", "w+");
     fprintf(demanda, "%d", tempo);
     fclose(demanda);
-
-    // printf("Cliente %d desligando...\n", getpid());
-    // fflush(stdout);
     
     raise(SIGSTOP);
-
-    // printf("Cliente %d acordado\n", getpid());
-    // fflush(stdout);
 
     sem_t *sem = sem_open("/sem_atend", O_RDWR);
 
     if(sem != SEM_FAILED) sem_wait(sem);
 
-    // printf("%d: dormindo por %d ms...\n", getpid(), tempo);
-    // fflush(stdout);
     usleep(tempo);
 
     if(sem != SEM_FAILED) sem_post(sem);
 
-    // printf("Cliente saindo\n");
-    // fflush(stdout);
     return 0;
 }

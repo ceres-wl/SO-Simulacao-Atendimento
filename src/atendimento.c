@@ -58,22 +58,7 @@ void swap_threads(int to){
     swapcontext(&ctx_thread[antiga], &ctx_thread[atual]);
 }
 
-/* ideia:
-    Atualmente, o escalonador prefere o atendente então escolhe ele mais,
-    mas o atendente não consegue trabalhar sem a recepção criar um cliente antes,
-    então o escalonador tá passando pro atendente só pro atendente passar de volta pra recepção
-    por não ter clientes na fila
-
-    Dar a preferencia pra recepção diminuiria as trocas de contexto mas nós não utilizariamos
-    mt o sistemas de thread dai, e nn aprovetariamos o tempo que a recepção tá fzd chamada pra
-    atender algm por exemplo. Além disso aquele nosso busy waiting na recepção seria um problema
-
-    A ideia é fzr o escalonador mudar a preferência com base na quantidade de clientes na fila,
-    não deve ser dificil acho, só talvez tenha q calibrar um pouquinho
-*/
 void escalonador(int n){
-    // printf("escalonando ");
-
     if(user_finish == 1){
         swapcontext(&ctx_thread[atual], &ctx_main);
     }
@@ -81,8 +66,8 @@ void escalonador(int n){
     // HACK O ideal aqui seria deletar o timer pra essa função nem ser chamada mais, mas não sei fazer isso
     // E não vai ajudar mt na eficiencia do programa
     if(recep_finish == 1){
-        if(atual != THREAD_RECEP){
-            swap_threads(THREAD_RECEP);
+        if(atual != THREAD_ATEND){
+            swap_threads(THREAD_ATEND);
         }
 
         return;
@@ -96,33 +81,6 @@ void escalonador(int n){
     }else if(atual == 2){
         swap_threads(THREAD_ATEND);
     }
-    
-    // Tá meio desgraçado esse escalonador, primeiro passo pra otimizar é melhorar isso aqui
-    // if(timing_scanner > 25){
-    //     swap_threads(THREAD_SCANN);
-    //     timing_scanner = 0;
-    // }else if(fila->tamanho < fila->capacidade && timing_threads < 6){
-    //     swap_threads(THREAD_RECEP);
-    // }else{
-    //     swap_threads(THREAD_ATEND);
-    //     timing_threads = 0;
-    // }
-
-    // if(atual != THREAD_RECEP){
-    //     if(quantum % 5 == 0){
-    //         swap_threads(THREAD_RECEP);
-    //     }
-    // }
-    // else if(atual != THREAD_SCANN && quantum > 25){
-    //     swap_threads(THREAD_SCANN);
-        
-    //     quantum = 0;
-    // }else{
-    //     swap_threads(THREAD_ATEND);
-    // }
-
-    // printf("%d\n", atual);
-    // fflush(stdout);
 }
 
 void iniciar_timer(int microsegundos) {
@@ -153,6 +111,10 @@ void scanner(){
         scanf("%c", &input);
     }while(input != 's');
 
+    kill(pid_analista, SIGCONT);
+    int status;
+    waitpid(pid_analista, &status, WUNTRACED);
+
     user_finish = 1;
 }
 
@@ -164,22 +126,16 @@ void atendente(){
     // O busy waiting não é ideal mas não é pra influenciar mt na eficiencia do programa, só vai gastar mais cpu doq precisa as vezes
     Cliente* c = dequeueCliente(fila);
     while(c != NULL || recep_finish == 0){
+        printf("test\n");
+        fflush(stdout);
         // Se a fila estiver vazia mas a recepção ainda estiver ativa não podemos terminar
         if(c == NULL){
-            // printf("Sem clientes, passando para a recepção...\n");
-            // fflush(stdout);
-
             swap_threads(THREAD_RECEP);
-
-            // printf("Voltando da recepção...\n");
-            // fflush(stdout);
 
             c = dequeueCliente(fila);
             continue;
         }
 
-        // printf("Acordando cliente %d\n", c->PID);
-        // fflush(stdout);
         kill(c->PID, SIGCONT);
 
         // Esperando sem_atend abrir
@@ -197,14 +153,9 @@ void atendente(){
         fprintf(lng, "%d\n", c->PID);
         fclose(lng);
 
-        // Abrir sem_atend
         // Abrir sem_block
         sem_post(sem_block);
 
-        // printf("%d\n", c->PID);
-        // fflush(stdout);
-
-        // TODO decidir condição
         if(timing_analista == 10){
             kill(pid_analista, SIGCONT);
             timing_analista = 0;
@@ -212,14 +163,6 @@ void atendente(){
         timing_analista++;
 
         destroyCliente(c);
-
-        // timing_scanner++;
-        // if(needs_scanner && timing_scanner > 100){
-        //     swap_threads(THREAD_SCANN);
-        //     timing_scanner = 0;
-        // }else{
-        //     swap_threads(THREAD_RECEP);
-        // }
 
         c = dequeueCliente(fila);
     }
@@ -251,12 +194,7 @@ void recepcao(){
 
     int num_proc = 0;
     while(N == 0 || num_proc < N){
-        // TODO Busy waiting indireto, nesse caso afeta a eficiencia do programa,
-        // dá pra pensar numa solução melhor dps
-        // ideia: Só escalonar direto pro atendente
         if(N == 0 && fila->tamanho >= 100){
-            // printf("Fila cheia...");
-            // fflush(stdout);
             swap_threads(THREAD_ATEND);
             continue;
         }
@@ -266,13 +204,6 @@ void recepcao(){
         char** envp;
         pid_t pid = create_proc("build/cliente", argv, envp);
 
-        // Checando se a demanda já foi escrita antes de continuar
-        // TODO mudar o tempo desse sleep se necessário
-        // while(access("demanda.txt", F_OK) != 0) usleep(10);
-
-        // A solução antiga era essa de cima, mas essa solução nova resolve aquele problema
-        // e outro problema ainda, que o cliente podia entrar na fila (e consequentemente ser atendido)
-        // antes de dar raise(SIGSTOP), que gerava um deadlock
         int status;
         waitpid(pid, &status, WUNTRACED); // Esperar o cliente dar sigstop antes de seguir
 
@@ -290,9 +221,6 @@ void recepcao(){
         enqueueCliente(fila,
             createCliente(pid, prioridade, timeInMilliseconds()-tempo_inicio, paciencia, tempo_atendimento)
         );
-
-        // printf("Cliente criado: %d\n", pid);
-        // fflush(stdout);
         
         swap_threads(THREAD_ATEND);
 
@@ -313,7 +241,6 @@ int main(int argc, char** argv) {
     sem_unlink("/sem_atend");
     sem_unlink("/sem_block");
 
-    // TODO tratamento melhor de entrada
     if(argc != 3){
         printf("Numero incorreto de argumentos!\n");
         return 0;
@@ -322,14 +249,11 @@ int main(int argc, char** argv) {
     N = atoi(argv[1]);
 
     needs_scanner = N == 0;
-    // Não tenho certeza se ele vai usar float aqui, talvez seja só inteiro
     X = atof(argv[2]);
 
     fila = createFila(N!=0?N:100);
     
     srand(time(NULL));
-
-    // A partir daqui é aquele código do yuri, modificado um pouquinho só
 
     getcontext(&ctx_thread[0]);
     getcontext(&ctx_thread[1]);
@@ -350,10 +274,14 @@ int main(int argc, char** argv) {
     ctx_thread[2].uc_stack.ss_flags = 0;
     ctx_thread[2].uc_link = &ctx_main;
 
-    // TODO analista deveria ser processo separado iniciado separadamente, com pid lido de um arquivo
-    char** argv_analista;
-    char** envp_analista;
-    pid_analista = create_proc("build/analista", argv_analista, envp_analista);
+    // char** argv_analista;
+    // char** envp_analista;
+    // pid_analista = create_proc("build/analista", argv_analista, envp_analista);
+    FILE* analista_f = fopen("pid_analista.txt", "r");
+    char str[10] = "";
+    fgets(str, sizeof(str), analista_f);
+    fclose(analista_f);
+    pid_analista = atoi(str);
 
     makecontext(&ctx_thread[0], (void(*)(void))atendente, 0);
     makecontext(&ctx_thread[1], (void(*)(void))recepcao, 0);
