@@ -274,20 +274,21 @@ int main(int argc, char** argv) {
     ctx_thread[2].uc_stack.ss_flags = 0;
     ctx_thread[2].uc_link = &ctx_main;
 
-    // char** argv_analista;
-    // char** envp_analista;
-    // pid_analista = create_proc("build/analista", argv_analista, envp_analista);
-    FILE* analista_f = fopen("pid_analista.txt", "r");
-    char str[10] = "";
-    fgets(str, sizeof(str), analista_f);
-    fclose(analista_f);
-    pid_analista = atoi(str);
-
     makecontext(&ctx_thread[0], (void(*)(void))atendente, 0);
     makecontext(&ctx_thread[1], (void(*)(void))recepcao, 0);
     makecontext(&ctx_thread[2], (void(*)(void))scanner, 0);
 
-    swapcontext(&ctx_main, &ctx_thread[1]);
+    FILE* analista_f = fopen("pid_analista.txt", "r");
+    if(analista_f != NULL){
+        char str[10] = "";
+        fgets(str, sizeof(str), analista_f);
+        fclose(analista_f);
+        pid_analista = atoi(str);
+    
+        swapcontext(&ctx_main, &ctx_thread[1]);
+    }else{
+        printf("Inicie o analista antes!\n");
+    }
 
     free(ctx_thread[0].uc_stack.ss_sp);
     free(ctx_thread[1].uc_stack.ss_sp);

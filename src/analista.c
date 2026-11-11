@@ -56,6 +56,7 @@ int main(){
         // Esse sleep era pra diminuir as chances do 
         // usleep(20);
 
+        fclose(lng);
         sem_post(sem_block);
     }
 }
