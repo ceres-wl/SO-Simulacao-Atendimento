@@ -13,7 +13,7 @@
 int main(){
     sem_t *sem_block = sem_open("/sem_block", O_RDWR);
 
-    FILE* analista_f = fopen("pid_analista.txt", "w+");
+    FILE* analista_f = fopen("pid_analista.txt", "w");
     fprintf(analista_f, "%d", getpid());
     fclose(analista_f);
 
@@ -45,7 +45,9 @@ int main(){
 
         // Reescrevendo o resto dos PIDs que não lemos no lng
         // Eu poderia só reabrir o arquivo destruindo ele mas acho q é mais lento
-        ftruncate(lng->_fileno, 0);
+        // ftruncate(lng->_fileno, 0);
+        fclose(lng);
+        lng = fopen("lng.txt", "w");
         
         fseek(lng, 0, 0);
         fprintf(lng, "%s", remaining_content);

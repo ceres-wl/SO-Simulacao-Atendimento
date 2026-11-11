@@ -126,8 +126,6 @@ void atendente(){
     // O busy waiting não é ideal mas não é pra influenciar mt na eficiencia do programa, só vai gastar mais cpu doq precisa as vezes
     Cliente* c = dequeueCliente(fila);
     while(c != NULL || recep_finish == 0){
-        printf("test\n");
-        fflush(stdout);
         // Se a fila estiver vazia mas a recepção ainda estiver ativa não podemos terminar
         if(c == NULL){
             swap_threads(THREAD_RECEP);
